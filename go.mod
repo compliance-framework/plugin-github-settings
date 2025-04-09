@@ -1,4 +1,4 @@
-module github.com/compliance-framework/plugin-template
+module github.com/compliance-framework/plugin-github-settings
 
 go 1.23.6
 
@@ -14,7 +14,6 @@ require (
 )
 
 require (
-	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

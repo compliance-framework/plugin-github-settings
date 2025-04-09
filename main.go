@@ -6,7 +6,7 @@ import (
 
 	"github.com/compliance-framework/agent/runner"
 	"github.com/compliance-framework/agent/runner/proto"
-	"github.com/compliance-framework/plugin-template/internal"
+	"github.com/compliance-framework/plugin-github-settings/internal"
 	"github.com/hashicorp/go-hclog"
 	goplugin "github.com/hashicorp/go-plugin"
 )
