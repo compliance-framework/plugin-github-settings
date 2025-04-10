@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"os"
 	"time"
 
 	policyManager "github.com/compliance-framework/agent/policy-manager"
 	"github.com/compliance-framework/agent/runner"
 	"github.com/compliance-framework/agent/runner/proto"
 	"github.com/compliance-framework/configuration-service/sdk"
+	"github.com/google/go-github/v71/github"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-hclog"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -71,27 +71,25 @@ func (pe *PolicyEvaluator) Eval(data map[string]interface{}, policyPaths []strin
 			continue
 		}
 
-		// The plugin should pass in some parameters here that will uniquely identify the subject.
-		// This could be a hostname in the case it's a machine, the identifier of a cloud resource, etc.
-    hostname, err := os.Hostname()
-    if err != nil {
-        hostname = "fallback-val"
-    }
+		// Cast the interface{} back to a github Organization so we can use all the helper functions that exist underneath
+		org_data := data["organization"].(*github.Organization)
+		org_name := org_data.GetLogin()
+
 		subjectAttributeMap := map[string]string{
-			"type":     "machine-instance",
-			"hostname": hostname,
+			"type": "github-organization",
+			"name": org_name,
 		}
 		subjects := []*proto.SubjectReference{
 			{
-				Type:       "machine-instance",
+				Type:       "github-organization",
 				Attributes: subjectAttributeMap,
-				Title:      StringAddressed("Machine Instance"),
-				Remarks:    StringAddressed("A machine instance where we've retrieved the installed packages."),
+				Title:      StringAddressed("Github Organization "),
+				Remarks:    StringAddressed("The Github organization that is being audited"),
 				Props: []*proto.Property{
 					{
-						Name:    "hostname",
-						Value:   hostname,
-						Remarks: StringAddressed("The local hostname of the machine where the plugin has been executed"),
+						Name:    "organization_name",
+						Value:   org_name,
+						Remarks: StringAddressed("The name of the Github Organization"),
 					},
 				},
 			},
@@ -110,13 +108,13 @@ func (pe *PolicyEvaluator) Eval(data map[string]interface{}, policyPaths []strin
 				Props: nil,
 			},
 			{
-				Title: "Continuous Compliance Framework - Local APT Installed Packages Plugin",
+				Title: "Continuous Compliance Framework - Github Settings plugin",
 				Type:  "tool",
 				Links: []*proto.Link{
 					{
-						Href: "https://github.com/compliance-framework/plugin-apt-versions",
+						Href: "https://github.com/compliance-framework/plugin-github-settings",
 						Rel:  StringAddressed("reference"),
-						Text: StringAddressed("The Continuous Compliance Framework' Local APT Installed Packages Plugin"),
+						Text: StringAddressed("The Continuous Compliance Framework' Github Settings Plugin"),
 					},
 				},
 				Props: nil,
@@ -176,7 +174,7 @@ func (pe *PolicyEvaluator) Eval(data map[string]interface{}, policyPaths []strin
 				Components: components,
 				RelevantEvidence: []*proto.RelevantEvidence{
 					{
-						Description: fmt.Sprintf("Policy %v was executed against the Local SSH configuration, using the Local SSH Compliance Plugin", result.Policy.Package.PurePackage()),
+						Description: fmt.Sprintf("Policy %v was executed against the Github Settings, using the Github Setting Compliance Plugin", result.Policy.Package.PurePackage()),
 					},
 				},
 			}
@@ -187,10 +185,12 @@ func (pe *PolicyEvaluator) Eval(data map[string]interface{}, policyPaths []strin
 					UUID:      findingUUID.String(),
 					Collected: timestamppb.New(time.Now()),
 					Labels: map[string]string{
-						"type":         "ssh",
-						"host":         hostname,
-						"_policy":      result.Policy.Package.PurePackage(),
-						"_policy_path": result.Policy.File,
+						"provider":          "github",
+						"type":              "organization",
+						"service":           "organization-settings",
+						"organization_name": org_name,
+						"_policy":           result.Policy.Package.PurePackage(),
+						"_policy_path":      result.Policy.File,
 					},
 					Origins:             []*proto.Origin{{Actors: actors}},
 					Subjects:            subjects,
