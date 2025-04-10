@@ -89,12 +89,12 @@ func (l *CompliancePlugin) Configure(req *proto.ConfigureRequest) (*proto.Config
 	for config_key, validator := range GithubConfigValidators {
 		value, ok := passed_config[config_key]
 		if !ok {
-			l.logger.Error("Config Validator faliled", "key", config_key, "value", value, "not_set", true)
+			l.logger.Error("Config Validator failed", "key", config_key, "value", value, "not_set", true)
 			errored = true
 			continue
 		}
 		if err := validator(value); err != nil {
-			l.logger.Error("Config Validator faliled", "key", config_key, "value", value, "error", err)
+			l.logger.Error("Config Validator failed", "key", config_key, "value", value, "error", err)
 			errored = true
 		}
 	}
