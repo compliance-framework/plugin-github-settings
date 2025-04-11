@@ -81,8 +81,8 @@ func TestGithubOrg_EvaluatePolicies(t *testing.T) {
 	organization := &github.Organization{}
 	_ = json.Unmarshal([]byte(test_org_data), organization)
 
-	data := map[string]interface{}{
-		"organization": organization,
+	data := GithubSettings{
+		Organization: organization,
 	}
 
 	ctx := context.TODO()
