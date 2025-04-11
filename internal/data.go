@@ -9,7 +9,7 @@ import (
 )
 
 type GithubSettings struct {
-	Organization *github.Organization
+	Organization *github.Organization `json:"organization"`
 }
 
 type DataFetcher struct {
