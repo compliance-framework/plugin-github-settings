@@ -62,18 +62,20 @@ func (pe *PolicyEvaluator) Eval(data GithubSettings, policyPaths []string) (prot
 	})
 
 	subjectAttributeMap := map[string]string{
-		"type": "github-organization",
-		"name": org_name,
+		"type":          "software-organization",
+		"name":          org_name,
+		"org-url":       organization.GetURL(),
+		"billing-email": organization.GetBillingEmail(),
 	}
 	subjects := []*proto.SubjectReference{
 		{
-			Type:       "github-organization",
+			Type:       "software-organization",
 			Attributes: subjectAttributeMap,
 			Title:      StringAddressed("Github Organization "),
 			Remarks:    StringAddressed("The Github organization that is being audited"),
 			Props: []*proto.Property{
 				{
-					Name:    "organization_name",
+					Name:    "organization-name",
 					Value:   org_name,
 					Remarks: StringAddressed("The name of the Github Organization"),
 				},
