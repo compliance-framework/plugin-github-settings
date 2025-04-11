@@ -8,6 +8,10 @@ import (
 	"github.com/hashicorp/go-hclog"
 )
 
+type GithubSettings struct {
+	Organization *github.Organization
+}
+
 type DataFetcher struct {
 	logger hclog.Logger
 	config map[string]string
@@ -20,7 +24,7 @@ func NewDataFetcher(logger hclog.Logger, config map[string]string) *DataFetcher 
 	}
 }
 
-func (df DataFetcher) FetchData() (map[string]any, []*proto.Step, error) {
+func (df DataFetcher) FetchData() (GithubSettings, []*proto.Step, error) {
 	steps := make([]*proto.Step, 0)
 
 	steps = append(steps, &proto.Step{
@@ -48,7 +52,7 @@ func (df DataFetcher) FetchData() (map[string]any, []*proto.Step, error) {
 
 	// TODO: Rate limiting check and back off
 
-	return map[string]any{
-		"organization": org,
+	return GithubSettings{
+		Organization: org,
 	}, steps, nil
 }
