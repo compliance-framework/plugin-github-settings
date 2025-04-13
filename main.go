@@ -2,51 +2,40 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"net/url"
-	"regexp"
-
 	"github.com/compliance-framework/agent/runner"
 	"github.com/compliance-framework/agent/runner/proto"
 	"github.com/compliance-framework/plugin-github-settings/internal"
+	"github.com/google/go-github/v71/github"
 	"github.com/hashicorp/go-hclog"
 	goplugin "github.com/hashicorp/go-plugin"
+	"github.com/mitchellh/mapstructure"
 )
 
-type CompliancePlugin struct {
-	logger hclog.Logger
-	config map[string]string
+type PluginConfig struct {
+	Token        string `mapstructure:"token"`
+	Organization string `mapstructure:"organization"`
 }
 
-type ConfigValidatorFn func(value string) error
+type Validator interface {
+	Validate() error
+}
 
-var GithubConfigValidators = map[string]ConfigValidatorFn{
-	"api_url": func(value string) error {
-		if len(value) == 0 {
-			return fmt.Errorf("api_url cannot be empty")
-		}
-		_, err := url.ParseRequestURI(value)
-		if err != nil {
-			return err
-		}
-		return nil
-	},
-	"api_key": func(value string) error {
-		if len(value) == 0 {
-			return fmt.Errorf("api_key cannot be empty")
-		}
-		return nil
-	},
-	"organization": func(value string) error {
-		if len(value) == 0 {
-			return fmt.Errorf("organization cannot be empty")
-		}
-		regex := regexp.MustCompile("^[A-Za-z0-9._-]+$")
-		if !regex.MatchString(value) {
-			return fmt.Errorf("organization formatted incorrectly, please check")
-		}
-		return nil
-	},
+func (c *PluginConfig) Validate() error {
+	if c.Token == "" {
+		return errors.New("token is required")
+	}
+	if c.Organization == "" {
+		return errors.New("organization is required")
+	}
+	return nil
+}
+
+type CompliancePlugin struct {
+	logger       hclog.Logger
+	config       *PluginConfig
+	githubClient *github.Client
 }
 
 // Configure, and Eval are called at different times during the plugin execution lifecycle,
@@ -81,29 +70,24 @@ func (l *CompliancePlugin) Configure(req *proto.ConfigureRequest) (*proto.Config
 
 	// In this method, you should save any configuration values to your plugin struct, so you can later
 	// re-use them in PrepareForEval and Eval.
+	config := &PluginConfig{}
+	err := mapstructure.Decode(req.GetConfig(), config)
+	if err != nil {
+		l.logger.Error("Configuration cannot be decoded. Ensure the correct data has been passed.")
+		return nil, err
+	}
 
-	passed_config := req.GetConfig()
-
-	l.logger.Info("Validating configuration")
-	errored := false
-	for config_key, validator := range GithubConfigValidators {
-		value, ok := passed_config[config_key]
-		if !ok {
-			l.logger.Error("Config Validator failed", "key", config_key, "value", value, "not_set", true)
-			errored = true
-			continue
-		}
-		if err := validator(value); err != nil {
-			l.logger.Error("Config Validator failed", "key", config_key, "value", value, "error", err)
-			errored = true
+	// We could potentially move this interface to the shared agent SDK, so it can easily be used across plugins.
+	if v, ok := interface{}(config).(Validator); ok {
+		err = v.Validate()
+		if err != nil {
+			l.logger.Error("Configuration validation failed. Ensure the correct data has been passed.")
+			return nil, err
 		}
 	}
-	if errored {
-		l.logger.Error("Invalid configuration for the plugin. Check logs for the issues found")
-	} else {
-		l.logger.Info("Config Validator passed - continuing")
-	}
-	l.config = passed_config
+
+	l.config = config
+	l.githubClient = github.NewClient(nil).WithAuthToken(l.config.Token)
 	return &proto.ConfigureResponse{}, nil
 }
 
@@ -119,9 +103,9 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 
 	activities := make([]*proto.Activity, 0)
 
-	dataFetcher := internal.NewDataFetcher(l.logger, l.config)
+	dataFetcher := internal.NewDataFetcher(l.logger, l.githubClient)
 
-	data, collectSteps, err := dataFetcher.FetchData()
+	data, collectSteps, err := dataFetcher.FetchData(ctx, l.config.Organization)
 	if err != nil {
 		return &proto.EvalResponse{
 			Status: proto.ExecutionStatus_FAILURE,

@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"errors"
+	"github.com/google/go-github/v71/github"
 	"slices"
 
 	policyManager "github.com/compliance-framework/agent/policy-manager"
@@ -38,14 +39,10 @@ func (pe *PolicyEvaluator) GetFindings() []*proto.Finding {
 
 // Eval is used to run policies against the data you've collected. You could also consider an
 // `EvalAndSend` by passing in the `apiHelper` that sends the observations directly to the API.
-func (pe *PolicyEvaluator) Eval(data GithubSettings, policyPaths []string) (proto.ExecutionStatus, error) {
+func (pe *PolicyEvaluator) Eval(organization *github.Organization, policyPaths []string) (proto.ExecutionStatus, error) {
 	var accumulatedErrors error
 
 	evalStatus := proto.ExecutionStatus_SUCCESS
-
-	// Cast the interface{} back to a github Organization so we can use all the helper functions that exist underneath
-	organization := data.Organization
-	org_name := organization.GetLogin()
 
 	activities := make([]*proto.Activity, 0)
 	findings := make([]*proto.Finding, 0)
@@ -61,23 +58,26 @@ func (pe *PolicyEvaluator) Eval(data GithubSettings, policyPaths []string) (prot
 		Description: "Using previously collected JSON-formatted installed OS package data, execute the compiled policies",
 	})
 
-	subjectAttributeMap := map[string]string{
-		"type":          "software-organization",
-		"name":          org_name,
-		"org-url":       organization.GetURL(),
-		"billing-email": organization.GetBillingEmail(),
-	}
 	subjects := []*proto.SubjectReference{
 		{
-			Type:       "software-organization",
-			Attributes: subjectAttributeMap,
-			Title:      StringAddressed("Github Organization "),
-			Remarks:    StringAddressed("The Github organization that is being audited"),
+			Type: "software-organization",
+			Attributes: map[string]string{
+				"provider":          "github",
+				"type":              "organization",
+				"organization-name": organization.GetName(),
+				"organization-path": organization.GetLogin(),
+			},
+			Title: policyManager.Pointer("Software Organization"),
 			Props: []*proto.Property{
 				{
-					Name:    "organization-name",
-					Value:   org_name,
-					Remarks: StringAddressed("The name of the Github Organization"),
+					Name:  "organization",
+					Value: organization.GetName(),
+				},
+			},
+			Links: []*proto.Link{
+				{
+					Href: organization.GetURL(),
+					Text: policyManager.Pointer("Organization URL"),
 				},
 			},
 		},
@@ -89,8 +89,8 @@ func (pe *PolicyEvaluator) Eval(data GithubSettings, policyPaths []string) (prot
 			Links: []*proto.Link{
 				{
 					Href: "https://compliance-framework.github.io/docs/",
-					Rel:  StringAddressed("reference"),
-					Text: StringAddressed("The Continuous Compliance Framework"),
+					Rel:  policyManager.Pointer("reference"),
+					Text: policyManager.Pointer("The Continuous Compliance Framework"),
 				},
 			},
 			Props: nil,
@@ -101,8 +101,8 @@ func (pe *PolicyEvaluator) Eval(data GithubSettings, policyPaths []string) (prot
 			Links: []*proto.Link{
 				{
 					Href: "https://github.com/compliance-framework/plugin-github-settings",
-					Rel:  StringAddressed("reference"),
-					Text: StringAddressed("The Continuous Compliance Framework' Github Settings Plugin"),
+					Rel:  policyManager.Pointer("reference"),
+					Text: policyManager.Pointer("The Continuous Compliance Framework' Github Settings Plugin"),
 				},
 			},
 			Props: nil,
@@ -110,7 +110,10 @@ func (pe *PolicyEvaluator) Eval(data GithubSettings, policyPaths []string) (prot
 	}
 	components := []*proto.ComponentReference{
 		{
-			Identifier: "common-components/template",
+			Identifier: "common-components/github-organization",
+		},
+		{
+			Identifier: "common-components/version-control",
 		},
 	}
 
@@ -127,7 +130,7 @@ func (pe *PolicyEvaluator) Eval(data GithubSettings, policyPaths []string) (prot
 			map[string]string{
 				"provider":          "github",
 				"type":              "organization",
-				"organization-name": org_name,
+				"organization-name": organization.GetName(),
 				"_policy_path":      policyPath,
 			},
 			subjects,
@@ -135,7 +138,7 @@ func (pe *PolicyEvaluator) Eval(data GithubSettings, policyPaths []string) (prot
 			actors,
 			activities,
 		)
-		obs, finds, err := processor.GenerateResults(pe.ctx, policyPath, data)
+		obs, finds, err := processor.GenerateResults(pe.ctx, policyPath, organization)
 		observations = slices.Concat(observations, obs)
 		findings = slices.Concat(findings, finds)
 		if err != nil {

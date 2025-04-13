@@ -81,14 +81,10 @@ func TestGithubOrg_EvaluatePolicies(t *testing.T) {
 	organization := &github.Organization{}
 	_ = json.Unmarshal([]byte(test_org_data), organization)
 
-	data := GithubSettings{
-		Organization: organization,
-	}
-
 	ctx := context.TODO()
 
 	evaluator := NewPolicyEvaluator(ctx, logger, steps)
-	status, err := evaluator.Eval(data, []string{"../examples/policies"})
+	status, err := evaluator.Eval(organization, []string{"../examples/policies"})
 
 	if status != proto.ExecutionStatus_SUCCESS {
 		t.Fail()
