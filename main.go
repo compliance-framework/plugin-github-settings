@@ -2,18 +2,40 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
-
 	"github.com/compliance-framework/agent/runner"
 	"github.com/compliance-framework/agent/runner/proto"
-	"github.com/compliance-framework/plugin-template/internal"
+	"github.com/compliance-framework/plugin-github-settings/internal"
+	"github.com/google/go-github/v71/github"
 	"github.com/hashicorp/go-hclog"
 	goplugin "github.com/hashicorp/go-plugin"
+	"github.com/mitchellh/mapstructure"
 )
 
+type PluginConfig struct {
+	Token        string `mapstructure:"token"`
+	Organization string `mapstructure:"organization"`
+}
+
+type Validator interface {
+	Validate() error
+}
+
+func (c *PluginConfig) Validate() error {
+	if c.Token == "" {
+		return errors.New("token is required")
+	}
+	if c.Organization == "" {
+		return errors.New("organization is required")
+	}
+	return nil
+}
+
 type CompliancePlugin struct {
-	logger hclog.Logger
-	config map[string]string
+	logger       hclog.Logger
+	config       *PluginConfig
+	githubClient *github.Client
 }
 
 // Configure, and Eval are called at different times during the plugin execution lifecycle,
@@ -48,8 +70,24 @@ func (l *CompliancePlugin) Configure(req *proto.ConfigureRequest) (*proto.Config
 
 	// In this method, you should save any configuration values to your plugin struct, so you can later
 	// re-use them in PrepareForEval and Eval.
+	config := &PluginConfig{}
+	err := mapstructure.Decode(req.GetConfig(), config)
+	if err != nil {
+		l.logger.Error("Configuration cannot be decoded. Ensure the correct data has been passed.")
+		return nil, err
+	}
 
-	l.config = req.GetConfig()
+	// We could potentially move this interface to the shared agent SDK, so it can easily be used across plugins.
+	if v, ok := interface{}(config).(Validator); ok {
+		err = v.Validate()
+		if err != nil {
+			l.logger.Error("Configuration validation failed. Ensure the correct data has been passed.")
+			return nil, err
+		}
+	}
+
+	l.config = config
+	l.githubClient = github.NewClient(nil).WithAuthToken(l.config.Token)
 	return &proto.ConfigureResponse{}, nil
 }
 
@@ -65,9 +103,9 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 
 	activities := make([]*proto.Activity, 0)
 
-	dataFetcher := internal.NewDataFetcher(l.logger, l.config)
+	dataFetcher := internal.NewDataFetcher(l.logger, l.githubClient)
 
-	data, collectSteps, err := dataFetcher.FetchData()
+	data, collectSteps, err := dataFetcher.FetchData(ctx, l.config.Organization)
 	if err != nil {
 		return &proto.EvalResponse{
 			Status: proto.ExecutionStatus_FAILURE,
