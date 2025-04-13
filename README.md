@@ -35,8 +35,7 @@ The plugin configuration must be created and managed by the agent, but expects t
 plugins:
     github:
         config:
-            api_key: github_pat_1234....  # The configured Github PAT for the organization scopes
-            api_url: https://api.github.com  # The URL for the API endpoint for GH installations on-premise 
+            token: github_pat_1234....  # The configured Github PAT for the organization scopes
             organization: test-org  # The name of the organization
 ...
 ```
