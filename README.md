@@ -21,7 +21,7 @@ goreleaser release --snapshot --clean
 
 ## Usage
 
-You can use this plugin by passing it to the compliiance agent
+You can use this plugin by passing it to the compliance agent
 
 ```shell
 agent --plugin=[PATH_TO_YOUR_BINARY]
@@ -29,14 +29,23 @@ agent --plugin=[PATH_TO_YOUR_BINARY]
 
 ## Plugin Configuration
 
-The plugin configuration must be created and managed by the agent, but expects the following configuration keys to be set, otherwise it will fail
+The plugin configuration must be created and managed by the agent, but expects the following configuration keys to be set, otherwise it will fail.
+
+Plugins read their configuration from environment variables, when the path matches the yaml structure.
+
+In the example above, setting an empty token, and an environment variable `CCF_PLUGINS_GITHUB_CONFIG_TOKEN` will use the environment variable.
+
+```shell
+export CCF_PLUGINS_GITHUB_CONFIG_TOKEN="github_pat_1234..."
+```
+
 ```yaml
 ...
 plugins:
-    github:
-        config:
-            token: github_pat_1234....  # The configured Github PAT for the organization scopes
-            organization: test-org  # The name of the organization
+  github:
+    config:
+      token: "" # Will be read from the CCF_PLUGINS_GITHUB_CONFIG_TOKEN environment variable
+      organization: test-org  # The name of the organization
 ...
 ```
 
