@@ -153,10 +153,9 @@ func (pe *PolicyEvaluator) Eval(organization *github.Organization, policyPaths [
 		processor := policyManager.NewPolicyProcessor(
 			pe.logger,
 			map[string]string{
-				"provider":          "github",
-				"type":              "organization",
-				"organization-name": organization.GetName(),
-				"_policy_path":      policyPath,
+				"provider":     "github",
+				"type":         "organization",
+				"organization": organization.GetLogin(),
 			},
 			subjects,
 			components,
