@@ -94,7 +94,7 @@ func TestGithubOrg_EvaluatePolicies(t *testing.T) {
 		t.Fail()
 	}
 
-	if len(evaluator.GetFindings()) < 1 {
+	if len(evaluator.GetEvidences()) < 1 {
 		t.Fail()
 	}
 }
