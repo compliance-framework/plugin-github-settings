@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/google/go-github/v71/github"
 	"slices"
 
 	policyManager "github.com/compliance-framework/agent/policy-manager"
@@ -34,7 +33,7 @@ func (pe *PolicyEvaluator) GetEvidences() []*proto.Evidence {
 
 // Eval is used to run policies against the data you've collected. You could also consider an
 // `EvalAndSend` by passing in the `apiHelper` that sends the observations directly to the API.
-func (pe *PolicyEvaluator) Eval(organization *github.Organization, policyPaths []string) (proto.ExecutionStatus, error) {
+func (pe *PolicyEvaluator) Eval(data *GithubData, policyPaths []string) (proto.ExecutionStatus, error) {
 	var accumulatedErrors error
 
 	evalStatus := proto.ExecutionStatus_SUCCESS
@@ -97,22 +96,22 @@ func (pe *PolicyEvaluator) Eval(organization *github.Organization, policyPaths [
 
 	inventory := []*proto.InventoryItem{
 		{
-			Identifier: fmt.Sprintf("github-organization/%s", organization.GetLogin()),
+			Identifier: fmt.Sprintf("github-organization/%s", data.Settings.GetLogin()),
 			Type:       "github-organization",
-			Title:      fmt.Sprintf("Github Organization [%s]", organization.GetName()),
+			Title:      fmt.Sprintf("Github Organization [%s]", data.Settings.GetName()),
 			Props: []*proto.Property{
 				{
 					Name:  "name",
-					Value: organization.GetName(),
+					Value: data.Settings.GetName(),
 				},
 				{
 					Name:  "path",
-					Value: organization.GetLogin(),
+					Value: data.Settings.GetLogin(),
 				},
 			},
 			Links: []*proto.Link{
 				{
-					Href: organization.GetURL(),
+					Href: data.Settings.GetURL(),
 					Text: policyManager.Pointer("Organization URL"),
 				},
 			},
@@ -130,7 +129,7 @@ func (pe *PolicyEvaluator) Eval(organization *github.Organization, policyPaths [
 	subjects := []*proto.Subject{
 		{
 			Type:       proto.SubjectType_SUBJECT_TYPE_INVENTORY_ITEM,
-			Identifier: fmt.Sprintf("github-organization/%s", organization.GetLogin()),
+			Identifier: fmt.Sprintf("github-organization/%s", data.Settings.GetLogin()),
 		},
 		{
 			Type:       proto.SubjectType_SUBJECT_TYPE_COMPONENT,
@@ -155,7 +154,7 @@ func (pe *PolicyEvaluator) Eval(organization *github.Organization, policyPaths [
 			map[string]string{
 				"provider":     "github",
 				"type":         "organization",
-				"organization": organization.GetLogin(),
+				"organization": data.Settings.GetLogin(),
 			},
 			subjects,
 			components,
@@ -163,7 +162,7 @@ func (pe *PolicyEvaluator) Eval(organization *github.Organization, policyPaths [
 			actors,
 			activities,
 		)
-		evidence, err := processor.GenerateResults(pe.ctx, policyPath, organization)
+		evidence, err := processor.GenerateResults(pe.ctx, policyPath, data)
 		evidences = slices.Concat(evidences, evidence)
 		if err != nil {
 			accumulatedErrors = errors.Join(accumulatedErrors, err)
