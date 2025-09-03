@@ -53,14 +53,25 @@ func (df DataFetcher) FetchData(ctx context.Context, organization string) (*Gith
 		return nil, nil, err
 	}
 
-	teams, _, err := df.client.Teams.ListTeams(ctx, organization, nil)
-	if err != nil {
-		df.logger.Error("Error getting teams information", "org", organization, "error", err)
-		return nil, nil, err
+	var allTeams []*github.Team
+	paginationOpt := &github.ListOptions{PerPage: 100}
+
+	for {
+		teams, resp, err := df.client.Teams.ListTeams(ctx, organization, paginationOpt)
+		if err != nil {
+			df.logger.Error("Error getting teams information", "org", organization, "error", err)
+			return nil, nil, err
+		}
+
+		allTeams = append(allTeams, teams...)
+		if resp.NextPage == 0 {
+			break
+		}
+		paginationOpt.Page = resp.NextPage
 	}
 
 	return &GithubData{
 		Settings: org,
-		Teams:    teams,
+		Teams:    allTeams,
 	}, steps, nil
 }
