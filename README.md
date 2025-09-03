@@ -1,15 +1,15 @@
 # Compliance Framework Plugin For Github
 
-This is the individual plugin for polling github settings for organizations and repositories to test for configuration flags that are going to fail compliance checks. 
+This is the individual plugin for polling github settings for organizations and repositories to test for configuration flags that are going to fail compliance checks.
 
-For the moment, it is solely limited to authenticated Github organizations with a Github PAT, but in the future it should query security plans & repositories for specific settings 
+For the moment, it is solely limited to authenticated Github organizations with a Github PAT, but in the future it should query security plans & repositories for specific settings
 
 ## Prerequisites
 
-* GoReleaser https://goreleaser.com/install/
-* Github Fine Grain Personal Access Token with the following scopes:
-    * `read:org` for the organization to be queried. Note - you *might* need to be an administrator of the GH Org to work correctly
-
+- GoReleaser https://goreleaser.com/install/
+- Github Fine Grain Personal Access Token with the following scopes:
+  - `read:org` for the organization to be queried. Note - you _might_ need to be an administrator of the GH Org to work correctly
+  - `read:members` to be able to read teams
 
 ## Building
 
@@ -40,13 +40,12 @@ export CCF_PLUGINS_GITHUB_CONFIG_TOKEN="github_pat_1234..."
 ```
 
 ```yaml
-...
+---
 plugins:
   github:
     config:
       token: "" # Will be read from the CCF_PLUGINS_GITHUB_CONFIG_TOKEN environment variable
-      organization: test-org  # The name of the organization
-...
+      organization: test-org # The name of the organization
 ```
 
 ## Releasing
@@ -62,11 +61,3 @@ You can find the OCI implementations in the GitHub Packages page.
 ```shell
 concom agent --plugin=https://github.com/compliance-framework/plugin-template/releases/tag/0.0.1
 ```
-
-## Todo
-
-- [X] Pull Organization settings as an authenticated user 
-- [ ] Pull repository information for the listed Organization
-- [ ] Populate Security Plans and map them to the repositories to ensure that settings are enabled
-- [ ] Sensible defaults for the configuration
-- [ ] Better error handling for sending issues back to the agent
