@@ -92,6 +92,27 @@ func (l *CompliancePlugin) Configure(req *proto.ConfigureRequest) (*proto.Config
 	return &proto.ConfigureResponse{}, nil
 }
 
+func (l *CompliancePlugin) Init(req *proto.InitRequest, apiHelper runner.ApiHelper) (*proto.InitResponse, error) {
+	ctx := context.Background()
+
+	subjectTemplates := []*proto.SubjectTemplate{
+		{
+			Name:                "github-organization",
+			Type:                proto.SubjectType_SUBJECT_TYPE_COMPONENT,
+			TitleTemplate:       "GitHub Organization: {{ .organization }}",
+			DescriptionTemplate: "GitHub organization {{ .organization }}",
+			PurposeTemplate:     "Represents a GitHub organization being monitored for compliance",
+			IdentityLabelKeys:   []string{"organization"},
+			SelectorLabels:      []*proto.SubjectLabelSelector{},
+			LabelSchema: []*proto.SubjectLabelSchema{
+				{Key: "organization", Description: "The GitHub organization login name"},
+			},
+		},
+	}
+
+	return runner.InitWithSubjectsAndRisksFromPolicies(ctx, l.logger, req, apiHelper, subjectTemplates)
+}
+
 func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.ApiHelper) (*proto.EvalResponse, error) {
 	// Eval is used to run policies against the data you've collected in PrepareForEval.
 	// Eval will be called N times for every scheduled plugin execution where N is the amount of matching policies
@@ -160,7 +181,7 @@ func main() {
 	goplugin.Serve(&goplugin.ServeConfig{
 		HandshakeConfig: runner.HandshakeConfig,
 		Plugins: map[string]goplugin.Plugin{
-			"runner": &runner.RunnerGRPCPlugin{
+			"runner": &runner.RunnerV2GRPCPlugin{
 				Impl: compliancePluginObj,
 			},
 		},
