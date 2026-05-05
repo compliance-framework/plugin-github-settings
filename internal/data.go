@@ -73,7 +73,7 @@ func (df DataFetcher) FetchData(ctx context.Context, organization string) (*Gith
 	steps = append(steps, &proto.Step{
 		Title:       "Get SSO Configuration",
 		Description: "Fetches the SAML SSO configuration for the organization to verify identity provider enforcement",
-		Remarks:     policy_manager.Pointer("More information: https://docs.github.com/en/rest/orgs/orgs?apiVersion=2022-11-28#get-an-organization"),
+		Remarks:     policy_manager.Pointer("More information: https://docs.github.com/en/enterprise-cloud@latest/organizations/managing-saml-single-sign-on-for-your-organization/about-identity-and-access-management-with-saml-single-sign-on"),
 	})
 
 	steps = append(steps, &proto.Step{
@@ -127,20 +127,14 @@ func (df DataFetcher) FetchData(ctx context.Context, organization string) (*Gith
 
 	ssoData, err := df.fetchSSO(ctx, organization)
 	if err != nil {
-		df.logger.Warn("Could not fetch SSO configuration; marking SSO as disabled", "org", organization, "error", err)
-		ssoData = &OrgSSO{Enabled: false}
+		df.logger.Error("Error getting SSO configuration", "org", organization, "error", err)
+		return nil, nil, err
 	}
 
-	var ipAllowList []IPAllowListEntry
-	if org.Plan != nil && org.Plan.Name != nil && *org.Plan.Name == "enterprise" {
-		ipAllowList, err = df.fetchIPAllowList(ctx, organization)
-		if err != nil {
-			df.logger.Warn("Could not fetch IP allow-list; treating as empty", "org", organization, "error", err)
-			ipAllowList = []IPAllowListEntry{}
-		}
-	} else {
-		df.logger.Info("Skipping IP allow-list fetch: requires GitHub Enterprise Cloud", "org", organization, "plan", org.Plan)
-		ipAllowList = []IPAllowListEntry{}
+	ipAllowList, err := df.fetchIPAllowList(ctx, organization)
+	if err != nil {
+		df.logger.Error("Error getting IP allow-list", "org", organization, "error", err)
+		return nil, nil, err
 	}
 
 	return &GithubData{
@@ -162,7 +156,7 @@ func (df DataFetcher) fetchSSO(ctx context.Context, organization string) (*OrgSS
 		SAMLIdentityProvider *samlIdentityProvider `json:"saml_identity_provider"`
 	}
 
-	url := fmt.Sprintf("https://api.github.com/orgs/%s/sso", organization)
+	url := fmt.Sprintf("orgs/%s/sso", organization)
 	req, err := df.client.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("building SSO request: %w", err)
@@ -190,7 +184,8 @@ func (df DataFetcher) fetchSSO(ctx context.Context, organization string) (*OrgSS
 
 func (df DataFetcher) fetchIPAllowList(ctx context.Context, organization string) ([]IPAllowListEntry, error) {
 	type graphqlRequest struct {
-		Query string `json:"query"`
+		Query     string                 `json:"query"`
+		Variables map[string]interface{} `json:"variables"`
 	}
 	type ipAllowListEntryNode struct {
 		AllowListValue string `json:"allowListValue"`
@@ -201,7 +196,11 @@ func (df DataFetcher) fetchIPAllowList(ctx context.Context, organization string)
 		Node ipAllowListEntryNode `json:"node"`
 	}
 	type ipAllowListConnection struct {
-		Edges []ipAllowListEdge `json:"edges"`
+		Edges    []ipAllowListEdge `json:"edges"`
+		PageInfo struct {
+			HasNextPage bool    `json:"hasNextPage"`
+			EndCursor   *string `json:"endCursor"`
+		} `json:"pageInfo"`
 	}
 	type orgNode struct {
 		IPAllowListEntries ipAllowListConnection `json:"ipAllowListEntries"`
@@ -216,32 +215,66 @@ func (df DataFetcher) fetchIPAllowList(ctx context.Context, organization string)
 		} `json:"errors"`
 	}
 
-	gqlQuery := graphqlRequest{
-		Query: fmt.Sprintf(`{ organization(login: "%s") { ipAllowListEntries(first: 100) { edges { node { allowListValue isActive name } } } } }`, organization),
-	}
+	query := `query($login: String!, $after: String) {
+		organization(login: $login) {
+			ipAllowListEntries(first: 100, after: $after) {
+				edges {
+					node {
+						allowListValue
+						isActive
+						name
+					}
+				}
+				pageInfo {
+					hasNextPage
+					endCursor
+				}
+			}
+		}
+	}`
 
-	req, err := df.client.NewRequest(http.MethodPost, "https://api.github.com/graphql", gqlQuery)
-	if err != nil {
-		return nil, fmt.Errorf("building IP allow-list GraphQL request: %w", err)
-	}
+	var entries []IPAllowListEntry
+	var after *string
+	for {
+		gqlQuery := graphqlRequest{
+			Query: query,
+			Variables: map[string]interface{}{
+				"login": organization,
+				"after": after,
+			},
+		}
 
-	var gqlResp graphqlResponse
-	_, err = df.client.Do(ctx, req, &gqlResp)
-	if err != nil {
-		return nil, fmt.Errorf("executing IP allow-list GraphQL query: %w", err)
-	}
+		req, err := df.client.NewRequest(http.MethodPost, "graphql", gqlQuery)
+		if err != nil {
+			return nil, fmt.Errorf("building IP allow-list GraphQL request: %w", err)
+		}
 
-	if len(gqlResp.Errors) > 0 {
-		return nil, fmt.Errorf("GraphQL error: %s", gqlResp.Errors[0].Message)
-	}
+		var gqlResp graphqlResponse
+		_, err = df.client.Do(ctx, req, &gqlResp)
+		if err != nil {
+			return nil, fmt.Errorf("executing IP allow-list GraphQL query: %w", err)
+		}
 
-	entries := make([]IPAllowListEntry, 0, len(gqlResp.Data.Organization.IPAllowListEntries.Edges))
-	for _, edge := range gqlResp.Data.Organization.IPAllowListEntries.Edges {
-		entries = append(entries, IPAllowListEntry{
-			AllowListValue: edge.Node.AllowListValue,
-			IsActive:       edge.Node.IsActive,
-			Name:           edge.Node.Name,
-		})
+		if len(gqlResp.Errors) > 0 {
+			return nil, fmt.Errorf("GraphQL error: %s", gqlResp.Errors[0].Message)
+		}
+
+		connection := gqlResp.Data.Organization.IPAllowListEntries
+		for _, edge := range connection.Edges {
+			entries = append(entries, IPAllowListEntry{
+				AllowListValue: edge.Node.AllowListValue,
+				IsActive:       edge.Node.IsActive,
+				Name:           edge.Node.Name,
+			})
+		}
+
+		if !connection.PageInfo.HasNextPage {
+			break
+		}
+		if connection.PageInfo.EndCursor == nil {
+			return nil, fmt.Errorf("GraphQL response indicated another IP allow-list page without an end cursor")
+		}
+		after = connection.PageInfo.EndCursor
 	}
 	return entries, nil
 }
