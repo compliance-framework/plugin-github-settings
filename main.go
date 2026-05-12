@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -140,30 +139,6 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 			}, fmt.Errorf("failed to fetch data: %w", dataErr)
 		}
 	}
-	ipAllowListState := "unset"
-	ipAllowListCount := 0
-	if data != nil {
-		if data.IPAllowList == nil {
-			ipAllowListState = "nil_pointer"
-		} else if *data.IPAllowList == nil {
-			ipAllowListState = "null"
-		} else {
-			ipAllowListState = "present"
-			ipAllowListCount = len(*data.IPAllowList)
-		}
-		serializedInput, err := json.Marshal(data)
-		if err != nil {
-			l.logger.Debug("Failed to serialize GitHub settings policy input", "error", err)
-		} else {
-			l.logger.Debug("GitHub settings policy input after collection",
-				"organization", l.config.Organization,
-				"collect_ip_allow_list", l.config.CollectIPAllowList,
-				"ip_allow_list_state", ipAllowListState,
-				"ip_allow_list_count", ipAllowListCount,
-				"input", string(serializedInput),
-			)
-		}
-	}
 
 	stepActivities := append(activities, &proto.Activity{
 		Title:       "Collect data",
@@ -192,6 +167,10 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 
 	resp := &proto.EvalResponse{
 		Status: evalStatus,
+	}
+
+	if dataErr != nil {
+		resp.Status = proto.ExecutionStatus_FAILURE
 	}
 
 	return resp, dataErr
