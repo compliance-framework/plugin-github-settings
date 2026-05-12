@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/go-github/v71/github"
 	"github.com/hashicorp/go-hclog"
+	"github.com/open-policy-agent/opa/v1/rego"
 )
 
 func testGithubClient(t *testing.T, handler http.Handler) (*github.Client, func()) {
@@ -25,6 +26,142 @@ func testGithubClient(t *testing.T, handler http.Handler) (*github.Client, func(
 	client.BaseURL = baseURL
 
 	return client, server.Close
+}
+
+func TestFetchDataReturnsErrorWhenOrganizationFetchFails(t *testing.T) {
+	client, cleanup := testGithubClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "organization unavailable", http.StatusInternalServerError)
+	}))
+	defer cleanup()
+
+	fetcher := NewDataFetcher(hclog.NewNullLogger(), client)
+	data, steps, err := fetcher.FetchData(context.Background(), "acme", false)
+	if err == nil {
+		t.Fatal("FetchData should return an error when the required organization endpoint fails")
+	}
+	if data != nil {
+		t.Fatalf("data = %#v, want nil", data)
+	}
+	if steps != nil {
+		t.Fatalf("steps = %#v, want nil", steps)
+	}
+}
+
+func TestFetchDataSkipsOptionalCollectionErrors(t *testing.T) {
+	optionalRequests := make(map[string]int)
+	client, cleanup := testGithubClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/orgs/acme":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"login":"acme","name":"Acme","url":"https://api.github.com/orgs/acme"}`))
+		case "/orgs/acme/teams", "/orgs/acme/members", "/orgs/acme/sso", "/graphql":
+			optionalRequests[r.URL.Path]++
+			http.Error(w, "optional data unavailable", http.StatusInternalServerError)
+		default:
+			t.Fatalf("unexpected request path %s", r.URL.Path)
+		}
+	}))
+	defer cleanup()
+
+	fetcher := NewDataFetcher(hclog.NewNullLogger(), client)
+	data, steps, err := fetcher.FetchData(context.Background(), "acme", true)
+	if err == nil {
+		t.Fatal("FetchData should return accumulated errors when optional collections fail")
+	}
+	if data == nil {
+		t.Fatal("data should be returned when only optional collection fails")
+	}
+	if data.Settings.GetLogin() != "acme" {
+		t.Fatalf("organization login = %q, want acme", data.Settings.GetLogin())
+	}
+	if len(data.Teams) != 0 {
+		t.Fatalf("len(Teams) = %d, want 0", len(data.Teams))
+	}
+	if len(data.Members) != 0 {
+		t.Fatalf("len(Members) = %d, want 0", len(data.Members))
+	}
+	if data.SSO != nil {
+		t.Fatalf("SSO = %#v, want nil", data.SSO)
+	}
+	if data.IPAllowList == nil {
+		t.Fatal("IPAllowList pointer should be set")
+	}
+	if *data.IPAllowList != nil {
+		t.Fatalf("IPAllowList = %#v, want nil slice for skipped collection", *data.IPAllowList)
+	}
+	if len(steps) == 0 {
+		t.Fatal("steps should still describe the collection activity")
+	}
+	for _, path := range []string{"/orgs/acme/teams", "/orgs/acme/members", "/orgs/acme/sso", "/graphql"} {
+		if optionalRequests[path] != 1 {
+			t.Fatalf("%s requests = %d, want 1", path, optionalRequests[path])
+		}
+	}
+}
+
+func TestFetchDataDoesNotCollectIPAllowListWhenDisabled(t *testing.T) {
+	graphqlRequests := 0
+	client, cleanup := testGithubClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/orgs/acme":
+			_, _ = w.Write([]byte(`{"login":"acme","name":"Acme","url":"https://api.github.com/orgs/acme"}`))
+		case "/orgs/acme/teams", "/orgs/acme/members":
+			_, _ = w.Write([]byte(`[]`))
+		case "/orgs/acme/sso":
+			http.NotFound(w, r)
+		case "/graphql":
+			graphqlRequests++
+			t.Fatalf("GraphQL IP allow-list request should not be made when collection is disabled")
+		default:
+			t.Fatalf("unexpected request path %s", r.URL.Path)
+		}
+	}))
+	defer cleanup()
+
+	fetcher := NewDataFetcher(hclog.NewNullLogger(), client)
+	data, steps, err := fetcher.FetchData(context.Background(), "acme", false)
+	if err != nil {
+		t.Fatalf("FetchData returned error: %v", err)
+	}
+	if data.IPAllowList == nil {
+		t.Fatal("IPAllowList pointer should be set")
+	}
+	if *data.IPAllowList != nil {
+		t.Fatalf("IPAllowList = %#v, want nil slice when collection is disabled", *data.IPAllowList)
+	}
+	encoded, err := json.Marshal(data)
+	if err != nil {
+		t.Fatalf("marshaling GithubData: %v", err)
+	}
+	var payload map[string]interface{}
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		t.Fatalf("unmarshaling GithubData: %v", err)
+	}
+	if value, ok := payload["ip_allow_list"]; !ok || value != nil {
+		t.Fatalf("JSON ip_allow_list = %#v, present = %v, want present null", value, ok)
+	}
+	evaluation, err := rego.New(
+		rego.Query("input.ip_allow_list"),
+		rego.Input(data),
+	).Eval(context.Background())
+	if err != nil {
+		t.Fatalf("evaluating OPA input: %v", err)
+	}
+	if len(evaluation) != 1 || len(evaluation[0].Expressions) != 1 {
+		t.Fatalf("OPA evaluation = %#v, want one null expression", evaluation)
+	}
+	if evaluation[0].Expressions[0].Value != nil {
+		t.Fatalf("OPA input.ip_allow_list = %#v, want null", evaluation[0].Expressions[0].Value)
+	}
+	if graphqlRequests != 0 {
+		t.Fatalf("GraphQL requests = %d, want 0", graphqlRequests)
+	}
+	for _, step := range steps {
+		if step.Title == "Get IP Allow-List" {
+			t.Fatal("IP allow-list collection step should not be present when collection is disabled")
+		}
+	}
 }
 
 func TestFetchSSOUsesRelativeURL(t *testing.T) {

@@ -21,7 +21,7 @@ func TestDataFetcher_FetchData(t *testing.T) {
 			client: github.NewClient(nil).WithAuthToken(os.Getenv("GITHUB_TOKEN")),
 		}
 
-		org, _, err := fetcher.FetchData(ctx, "compliance-framework")
+		org, _, err := fetcher.FetchData(ctx, "compliance-framework", false)
 		if err != nil {
 			t.Error(err)
 		}

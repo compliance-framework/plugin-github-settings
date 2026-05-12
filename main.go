@@ -15,8 +15,9 @@ import (
 )
 
 type PluginConfig struct {
-	Token        string `mapstructure:"token"`
-	Organization string `mapstructure:"organization"`
+	Token              string `mapstructure:"token"`
+	Organization       string `mapstructure:"organization"`
+	CollectIPAllowList bool   `mapstructure:"collect_ip_allow_list"`
 }
 
 type Validator interface {
@@ -72,7 +73,7 @@ func (l *CompliancePlugin) Configure(req *proto.ConfigureRequest) (*proto.Config
 	// In this method, you should save any configuration values to your plugin struct, so you can later
 	// re-use them in PrepareForEval and Eval.
 	config := &PluginConfig{}
-	err := mapstructure.Decode(req.GetConfig(), config)
+	err := mapstructure.WeakDecode(req.GetConfig(), config)
 	if err != nil {
 		l.logger.Error("Configuration cannot be decoded. Ensure the correct data has been passed.")
 		return nil, err
@@ -127,11 +128,16 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 
 	dataFetcher := internal.NewDataFetcher(l.logger, l.githubClient)
 
-	data, collectSteps, err := dataFetcher.FetchData(ctx, l.config.Organization)
-	if err != nil {
-		return &proto.EvalResponse{
-			Status: proto.ExecutionStatus_FAILURE,
-		}, fmt.Errorf("failed to fetch data: %w", err)
+	data, collectSteps, dataErr := dataFetcher.FetchData(ctx, l.config.Organization, l.config.CollectIPAllowList)
+	if dataErr != nil {
+		l.logger.Warn("Completed with non-fatal data collection errors", "error", dataErr)
+		// Continue with partial data - errors are accumulated but not fatal
+		// Policies will use skip_reason for fields that couldn't be fetched
+		if data == nil {
+			return &proto.EvalResponse{
+				Status: proto.ExecutionStatus_FAILURE,
+			}, fmt.Errorf("failed to fetch data: %w", dataErr)
+		}
 	}
 
 	stepActivities := append(activities, &proto.Activity{
@@ -163,7 +169,11 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 		Status: evalStatus,
 	}
 
-	return resp, nil
+	if dataErr != nil {
+		resp.Status = proto.ExecutionStatus_FAILURE
+	}
+
+	return resp, dataErr
 }
 
 func main() {
