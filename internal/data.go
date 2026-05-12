@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -29,7 +30,7 @@ type GithubData struct {
 	Teams       []*github.Team       `json:"teams"`
 	Members     []*github.User       `json:"members"`
 	SSO         *OrgSSO              `json:"sso"`
-	IPAllowList []IPAllowListEntry   `json:"ip_allow_list"`
+	IPAllowList *[]IPAllowListEntry  `json:"ip_allow_list"`
 }
 
 type DataFetcher struct {
@@ -44,7 +45,7 @@ func NewDataFetcher(logger hclog.Logger, client *github.Client) *DataFetcher {
 	}
 }
 
-func (df DataFetcher) FetchData(ctx context.Context, organization string) (*GithubData, []*proto.Step, error) {
+func (df DataFetcher) FetchData(ctx context.Context, organization string, collectIPAllowList bool) (*GithubData, []*proto.Step, error) {
 	steps := make([]*proto.Step, 0)
 
 	steps = append(steps, &proto.Step{
@@ -76,11 +77,13 @@ func (df DataFetcher) FetchData(ctx context.Context, organization string) (*Gith
 		Remarks:     policy_manager.Pointer("More information: https://docs.github.com/en/enterprise-cloud@latest/organizations/managing-saml-single-sign-on-for-your-organization/about-identity-and-access-management-with-saml-single-sign-on"),
 	})
 
-	steps = append(steps, &proto.Step{
-		Title:       "Get IP Allow-List",
-		Description: "Fetches the IP allow-list entries for the organization via the GitHub GraphQL API",
-		Remarks:     policy_manager.Pointer("More information: https://docs.github.com/en/graphql/reference/objects#ipallowlistentry"),
-	})
+	if collectIPAllowList {
+		steps = append(steps, &proto.Step{
+			Title:       "Get IP Allow-List",
+			Description: "Fetches the IP allow-list entries for the organization via the GitHub GraphQL API",
+			Remarks:     policy_manager.Pointer("More information: https://docs.github.com/en/graphql/reference/objects#ipallowlistentry"),
+		})
+	}
 
 	org, _, err := df.client.Organizations.Get(ctx, organization)
 	if err != nil {
@@ -88,14 +91,16 @@ func (df DataFetcher) FetchData(ctx context.Context, organization string) (*Gith
 		return nil, nil, err
 	}
 
-	var allTeams []*github.Team
+	var accumulatedErrors error
+	allTeams := make([]*github.Team, 0)
 	paginationOpt := &github.ListOptions{PerPage: 100}
 
 	for {
 		teams, resp, err := df.client.Teams.ListTeams(ctx, organization, paginationOpt)
 		if err != nil {
-			df.logger.Error("Error getting teams information", "org", organization, "error", err)
-			return nil, nil, err
+			df.logger.Warn("Skipping teams collection after GitHub API error", "org", organization, "error", err)
+			accumulatedErrors = errors.Join(accumulatedErrors, fmt.Errorf("failed to fetch teams: %w", err))
+			break
 		}
 
 		allTeams = append(allTeams, teams...)
@@ -105,7 +110,7 @@ func (df DataFetcher) FetchData(ctx context.Context, organization string) (*Gith
 		paginationOpt.Page = resp.NextPage
 	}
 
-	var allAdminMembers []*github.User
+	allAdminMembers := make([]*github.User, 0)
 	memberOpt := &github.ListMembersOptions{
 		Role:        "admin",
 		ListOptions: github.ListOptions{PerPage: 100},
@@ -114,8 +119,9 @@ func (df DataFetcher) FetchData(ctx context.Context, organization string) (*Gith
 	for {
 		members, resp, err := df.client.Organizations.ListMembers(ctx, organization, memberOpt)
 		if err != nil {
-			df.logger.Error("Error getting admin members", "org", organization, "error", err)
-			return nil, nil, err
+			df.logger.Warn("Skipping admin member collection after GitHub API error", "org", organization, "error", err)
+			accumulatedErrors = errors.Join(accumulatedErrors, fmt.Errorf("failed to fetch admin members: %w", err))
+			break
 		}
 
 		allAdminMembers = append(allAdminMembers, members...)
@@ -127,14 +133,19 @@ func (df DataFetcher) FetchData(ctx context.Context, organization string) (*Gith
 
 	ssoData, err := df.fetchSSO(ctx, organization)
 	if err != nil {
-		df.logger.Error("Error getting SSO configuration", "org", organization, "error", err)
-		return nil, nil, err
+		df.logger.Warn("Skipping SSO collection after GitHub API error", "org", organization, "error", err)
+		accumulatedErrors = errors.Join(accumulatedErrors, fmt.Errorf("failed to fetch SSO configuration: %w", err))
+		ssoData = nil
 	}
 
-	ipAllowList, err := df.fetchIPAllowList(ctx, organization)
-	if err != nil {
-		df.logger.Error("Error getting IP allow-list", "org", organization, "error", err)
-		return nil, nil, err
+	var ipAllowList []IPAllowListEntry
+	if collectIPAllowList {
+		ipAllowList, err = df.fetchIPAllowList(ctx, organization)
+		if err != nil {
+			df.logger.Warn("Skipping IP allow-list collection after GitHub API error", "org", organization, "error", err)
+			accumulatedErrors = errors.Join(accumulatedErrors, fmt.Errorf("failed to fetch IP allow-list. Please confirm a Classic token PAT is used to gather IP allowlist information: %w", err))
+			ipAllowList = nil
+		}
 	}
 
 	return &GithubData{
@@ -142,8 +153,8 @@ func (df DataFetcher) FetchData(ctx context.Context, organization string) (*Gith
 		Teams:       allTeams,
 		Members:     allAdminMembers,
 		SSO:         ssoData,
-		IPAllowList: ipAllowList,
-	}, steps, nil
+		IPAllowList: &ipAllowList,
+	}, steps, accumulatedErrors
 }
 
 func (df DataFetcher) fetchSSO(ctx context.Context, organization string) (*OrgSSO, error) {
@@ -233,7 +244,7 @@ func (df DataFetcher) fetchIPAllowList(ctx context.Context, organization string)
 		}
 	}`
 
-	var entries []IPAllowListEntry
+	entries := make([]IPAllowListEntry, 0)
 	var after *string
 	for {
 		gqlQuery := graphqlRequest{

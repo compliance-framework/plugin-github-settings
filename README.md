@@ -11,6 +11,14 @@ For the moment, it is solely limited to authenticated Github organizations with 
   - `read:org` for the organization to be queried. Note - you _might_ need to be an administrator of the GH Org to work correctly
   - `read:members` to be able to read teams
 
+### IP allow-list data
+
+GitHub organization IP allow-list collection is disabled by default. Enable it only when the plugin is configured with a Classic Personal Access Token with organization administrator permissions. Classic PATs are broad credentials, so prefer leaving `collect_ip_allow_list` set to `false` unless IP allow-list policies are required.
+
+Fine-grained Personal Access Tokens and GitHub App installation tokens may be able to read other organization settings, but GitHub does not currently allow them to query `organization.ipAllowListEntries` through GraphQL.
+
+If IP allow-list data cannot be fetched, the plugin continues with partial data and policies that depend on `ip_allow_list` should report a skip reason instead of evaluating incomplete evidence.
+
 ## Building
 
 Once you are ready to serve the plugin, you need to build the binaries which can be used by the agent.
@@ -37,6 +45,7 @@ In the example above, setting an empty token, and an environment variable `CCF_P
 
 ```shell
 export CCF_PLUGINS_GITHUB_CONFIG_TOKEN="github_pat_1234..."
+export CCF_PLUGINS_GITHUB_CONFIG_COLLECT_IP_ALLOW_LIST="false"
 ```
 
 ```yaml
@@ -46,6 +55,7 @@ plugins:
     config:
       token: "" # Will be read from the CCF_PLUGINS_GITHUB_CONFIG_TOKEN environment variable
       organization: test-org # The name of the organization
+      collect_ip_allow_list: false # Set to true only when using a Classic PAT and IP allow-list evidence is required
 ```
 
 ## Releasing
