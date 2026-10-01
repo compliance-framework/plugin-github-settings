@@ -38,6 +38,7 @@ type CompliancePlugin struct {
 	logger       hclog.Logger
 	config       *PluginConfig
 	githubClient *github.Client
+	policyData   map[string]interface{}
 }
 
 // Configure, and Eval are called at different times during the plugin execution lifecycle,
@@ -89,6 +90,11 @@ func (l *CompliancePlugin) Configure(req *proto.ConfigureRequest) (*proto.Config
 	}
 
 	l.config = config
+	if policyData := req.GetPolicyData(); policyData != nil {
+		l.policyData = policyData.AsMap()
+	} else {
+		l.policyData = nil
+	}
 	l.githubClient = github.NewClient(nil).WithAuthToken(l.config.Token)
 	return &proto.ConfigureResponse{}, nil
 }
@@ -146,7 +152,7 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 		Steps:       collectSteps,
 	})
 
-	policyEvaluator := internal.NewPolicyEvaluator(ctx, l.logger, stepActivities)
+	policyEvaluator := internal.NewPolicyEvaluator(ctx, l.logger, stepActivities, l.policyData)
 
 	evalStatus, err := policyEvaluator.Eval(data, request.PolicyPaths)
 
