@@ -16,14 +16,16 @@ type PolicyEvaluator struct {
 	logger         hclog.Logger
 	stepActivities []*proto.Activity
 	evidences      []*proto.Evidence
+	policyData     map[string]interface{}
 }
 
-func NewPolicyEvaluator(ctx context.Context, logger hclog.Logger, stepActivities []*proto.Activity) *PolicyEvaluator {
+func NewPolicyEvaluator(ctx context.Context, logger hclog.Logger, stepActivities []*proto.Activity, policyData map[string]interface{}) *PolicyEvaluator {
 	return &PolicyEvaluator{
 		ctx:            ctx,
 		logger:         logger,
 		stepActivities: stepActivities,
 		evidences:      make([]*proto.Evidence, 0),
+		policyData:     policyData,
 	}
 }
 
@@ -161,6 +163,7 @@ func (pe *PolicyEvaluator) Eval(data *GithubData, policyPaths []string) (proto.E
 			inventory,
 			actors,
 			activities,
+			pe.policyData,
 		)
 		evidence, err := processor.GenerateResults(pe.ctx, policyPath, data)
 		evidences = slices.Concat(evidences, evidence)

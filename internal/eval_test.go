@@ -85,7 +85,7 @@ func TestGithubOrg_EvaluatePolicies(t *testing.T) {
 
 	ctx := context.TODO()
 
-	evaluator := NewPolicyEvaluator(ctx, logger, steps)
+	evaluator := NewPolicyEvaluator(ctx, logger, steps, nil)
 	status, err := evaluator.Eval(settings, []string{"../examples/policies"})
 
 	if status != proto.ExecutionStatus_SUCCESS {
