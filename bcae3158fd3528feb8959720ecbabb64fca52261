@@ -1,0 +1,4 @@
+lisa-design:
+- Dependency bump only: the plugin already stores ConfigureRequest.policy_data (AsMap, nil when unset) in Configure and passes it to NewPolicyProcessor (added in bc6f27b with the v0.8.0-rc4 bump), so the v0.7.0 policyData parameter needs no code change here.
+- go directive stays 1.26.1 (already equal to agent v0.9.1's); agent stays a direct requirement.
+- Protocol v2 confirmed: main.go serves runner.RunnerV2GRPCPlugin and implements Init.
