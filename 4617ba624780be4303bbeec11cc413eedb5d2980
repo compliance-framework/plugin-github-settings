@@ -1,0 +1,7 @@
+lisa-design:
+- Callers copied from mock-plugin-1 (release-please, release, preview) and mock-plugin-policies-1 (cut-prerelease), pinned to workflows v1.5.2 (6e7fc9c); default branch is main, so push triggers use [main].
+- Manifest seeded at 0.5.0: latest final release v0.5.0 is a vX.Y.Z tag and an ancestor of main; no bootstrap-sha needed.
+- release-please-config.json equals workflows release-please/defaults.json at v1.5.2 plus packages {".": {release-type: go}}.
+- .goreleaser.yaml only gains release {prerelease: auto, replace_existing_artifacts: true}; builds and archives unchanged so asset names and contents match v0.5.0.
+- README "Releasing" section doesn't mention tag pushes or the old workflows, so it is left unchanged.
+- The legacy "Baseline" ruleset (deletion/force-push only) is out of scope and untouched.
