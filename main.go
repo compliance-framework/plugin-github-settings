@@ -63,7 +63,7 @@ type CompliancePlugin struct {
 //
 // The agent will:
 //   - Start the plugin
-//   - Call Configure() with teh required config
+//   - Call Configure() with the required config
 //   - Call Eval() with the first policy bundles (one by one, in turn),
 //     so the plugin can report any violations against the configuration
 func (l *CompliancePlugin) Configure(req *proto.ConfigureRequest) (*proto.ConfigureResponse, error) {
