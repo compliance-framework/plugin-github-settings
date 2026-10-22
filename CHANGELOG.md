@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.1](https://github.com/compliance-framework/plugin-github-settings/compare/v0.6.0...v0.6.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* **deps:** bump agent to v0.9.3, workflows to v1.7.0 ([#28](https://github.com/compliance-framework/plugin-github-settings/issues/28)) ([ffc5683](https://github.com/compliance-framework/plugin-github-settings/commit/ffc5683c3f361644ac19c36e0bc84e4136f88aaf))
+* **deps:** update module github.com/hashicorp/go-plugin to v1.8.0 ([#30](https://github.com/compliance-framework/plugin-github-settings/issues/30)) ([d6e9177](https://github.com/compliance-framework/plugin-github-settings/commit/d6e9177f36e53d66177e03f005dc928f2a4ca69d))
+
 ## [0.6.0](https://github.com/compliance-framework/plugin-github-settings/compare/v0.5.0...v0.6.0) (2026-10-14)
 
 
