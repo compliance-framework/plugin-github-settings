@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"testing"
 
 	"github.com/google/go-github/v93/github"
@@ -17,13 +16,14 @@ func testGithubClient(t *testing.T, handler http.Handler) (*github.Client, func(
 	t.Helper()
 
 	server := httptest.NewServer(handler)
-	client := github.NewClient(server.Client())
-
-	baseURL, err := url.Parse(server.URL + "/")
+	baseURL := server.URL + "/"
+	client, err := github.NewClient(
+		github.WithHTTPClient(server.Client()),
+		github.WithURLs(&baseURL, nil),
+	)
 	if err != nil {
-		t.Fatalf("parsing test server URL: %v", err)
+		t.Fatalf("creating GitHub client: %v", err)
 	}
-	client.BaseURL = baseURL
 
 	return client, server.Close
 }

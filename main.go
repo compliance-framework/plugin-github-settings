@@ -95,7 +95,11 @@ func (l *CompliancePlugin) Configure(req *proto.ConfigureRequest) (*proto.Config
 	} else {
 		l.policyData = nil
 	}
-	l.githubClient = github.NewClient(nil).WithAuthToken(l.config.Token)
+	githubClient, err := github.NewClient(github.WithAuthToken(l.config.Token))
+	if err != nil {
+		return nil, fmt.Errorf("creating GitHub client: %w", err)
+	}
+	l.githubClient = githubClient
 	return &proto.ConfigureResponse{}, nil
 }
 

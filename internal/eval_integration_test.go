@@ -16,9 +16,13 @@ func TestDataFetcher_FetchData(t *testing.T) {
 		// Simple test to locally validate that data can be fetched correctly
 		ctx := context.Background()
 
+		client, err := github.NewClient(github.WithAuthToken(os.Getenv("GITHUB_TOKEN")))
+		if err != nil {
+			t.Fatal(err)
+		}
 		fetcher := DataFetcher{
 			logger: hclog.NewNullLogger(),
-			client: github.NewClient(nil).WithAuthToken(os.Getenv("GITHUB_TOKEN")),
+			client: client,
 		}
 
 		org, _, err := fetcher.FetchData(ctx, "compliance-framework", false)
