@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/google/go-github/v71/github"
+	"github.com/google/go-github/v93/github"
 	"github.com/hashicorp/go-hclog"
 	"github.com/open-policy-agent/opa/v1/rego"
 )

@@ -5,7 +5,7 @@ package internal
 import (
 	"context"
 	"encoding/json"
-	"github.com/google/go-github/v71/github"
+	"github.com/google/go-github/v93/github"
 	"github.com/hashicorp/go-hclog"
 	"os"
 	"testing"

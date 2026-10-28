@@ -9,7 +9,7 @@ import (
 	policy_manager "github.com/compliance-framework/agent/policy-manager"
 
 	"github.com/compliance-framework/agent/runner/proto"
-	"github.com/google/go-github/v71/github"
+	"github.com/google/go-github/v93/github"
 	"github.com/hashicorp/go-hclog"
 )
 
