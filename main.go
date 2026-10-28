@@ -8,7 +8,7 @@ import (
 	"github.com/compliance-framework/agent/runner"
 	"github.com/compliance-framework/agent/runner/proto"
 	"github.com/compliance-framework/plugin-github-settings/internal"
-	"github.com/google/go-github/v71/github"
+	"github.com/google/go-github/v93/github"
 	"github.com/hashicorp/go-hclog"
 	goplugin "github.com/hashicorp/go-plugin"
 	"github.com/mitchellh/mapstructure"
@@ -95,7 +95,11 @@ func (l *CompliancePlugin) Configure(req *proto.ConfigureRequest) (*proto.Config
 	} else {
 		l.policyData = nil
 	}
-	l.githubClient = github.NewClient(nil).WithAuthToken(l.config.Token)
+	githubClient, err := github.NewClient(github.WithAuthToken(l.config.Token))
+	if err != nil {
+		return nil, fmt.Errorf("creating GitHub client: %w", err)
+	}
+	l.githubClient = githubClient
 	return &proto.ConfigureResponse{}, nil
 }
 

@@ -9,7 +9,7 @@ import (
 	policy_manager "github.com/compliance-framework/agent/policy-manager"
 
 	"github.com/compliance-framework/agent/runner/proto"
-	"github.com/google/go-github/v71/github"
+	"github.com/google/go-github/v93/github"
 	"github.com/hashicorp/go-hclog"
 )
 
@@ -168,13 +168,13 @@ func (df DataFetcher) fetchSSO(ctx context.Context, organization string) (*OrgSS
 	}
 
 	url := fmt.Sprintf("orgs/%s/sso", organization)
-	req, err := df.client.NewRequest(http.MethodGet, url, nil)
+	req, err := df.client.NewRequest(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("building SSO request: %w", err)
 	}
 
 	var ssoResp ssoResponse
-	httpResp, err := df.client.Do(ctx, req, &ssoResp)
+	httpResp, err := df.client.Do(req, &ssoResp)
 	if err != nil {
 		if httpResp != nil && httpResp.StatusCode == http.StatusNotFound {
 			return &OrgSSO{Enabled: false}, nil
@@ -255,13 +255,13 @@ func (df DataFetcher) fetchIPAllowList(ctx context.Context, organization string)
 			},
 		}
 
-		req, err := df.client.NewRequest(http.MethodPost, "graphql", gqlQuery)
+		req, err := df.client.NewRequest(ctx, http.MethodPost, "graphql", gqlQuery)
 		if err != nil {
 			return nil, fmt.Errorf("building IP allow-list GraphQL request: %w", err)
 		}
 
 		var gqlResp graphqlResponse
-		_, err = df.client.Do(ctx, req, &gqlResp)
+		_, err = df.client.Do(req, &gqlResp)
 		if err != nil {
 			return nil, fmt.Errorf("executing IP allow-list GraphQL query: %w", err)
 		}
