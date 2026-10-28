@@ -15,7 +15,7 @@ import (
 )
 
 type PluginConfig struct {
-	Token              string `mapstructure:"token"`
+	AuthConfig         `mapstructure:",squash"`
 	Organization       string `mapstructure:"organization"`
 	CollectIPAllowList bool   `mapstructure:"collect_ip_allow_list"`
 }
@@ -25,8 +25,8 @@ type Validator interface {
 }
 
 func (c *PluginConfig) Validate() error {
-	if c.Token == "" {
-		return errors.New("token is required")
+	if err := c.validateAuth(); err != nil {
+		return err
 	}
 	if c.Organization == "" {
 		return errors.New("organization is required")
@@ -95,7 +95,11 @@ func (l *CompliancePlugin) Configure(req *proto.ConfigureRequest) (*proto.Config
 	} else {
 		l.policyData = nil
 	}
-	githubClient, err := github.NewClient(github.WithAuthToken(l.config.Token))
+	httpClient, err := l.config.httpClient(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("creating GitHub http client: %w", err)
+	}
+	githubClient, err := github.NewClient(github.WithHTTPClient(httpClient))
 	if err != nil {
 		return nil, fmt.Errorf("creating GitHub client: %w", err)
 	}
