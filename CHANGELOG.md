@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.0](https://github.com/compliance-framework/plugin-github-settings/compare/v0.7.0...v0.8.0) (2026-11-02)
+
+
+### Features
+
+* GitHub App authentication ([#33](https://github.com/compliance-framework/plugin-github-settings/issues/33)) ([67a1f3e](https://github.com/compliance-framework/plugin-github-settings/commit/67a1f3e9e53c5a31640c32a947d75fba6c5783b0))
+
+
+### Bug Fixes
+
+* **deps:** build with the go1.26.10 toolchain so Renovate can ship Go security fixes ([#35](https://github.com/compliance-framework/plugin-github-settings/issues/35)) ([9ec6142](https://github.com/compliance-framework/plugin-github-settings/commit/9ec614269ac4364f9f174591307cacec9336f20a))
+* **deps:** bump agent to v0.9.6 ([#38](https://github.com/compliance-framework/plugin-github-settings/issues/38)) ([9a9f25c](https://github.com/compliance-framework/plugin-github-settings/commit/9a9f25c36b49b97f0641727bb344c714c4b6ef77))
+
 ## [0.7.0](https://github.com/compliance-framework/plugin-github-settings/compare/v0.6.0...v0.7.0) (2026-10-28)
 
 
