@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/compliance-framework/plugin-github-settings/compare/v0.8.0...v0.8.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **deps:** update security fixes (gomod) [security] ([#39](https://github.com/compliance-framework/plugin-github-settings/issues/39)) ([d18f5b8](https://github.com/compliance-framework/plugin-github-settings/commit/d18f5b89c7dfa3441baf682709388f691f0e97ff))
+
 ## [0.8.0](https://github.com/compliance-framework/plugin-github-settings/compare/v0.7.0...v0.8.0) (2026-11-02)
 
 
