@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.1](https://github.com/compliance-framework/plugin-github-settings/compare/v0.8.0...v0.8.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* **deps:** update module golang.org/x/oauth2 to v0.38.0 ([#41](https://github.com/compliance-framework/plugin-github-settings/issues/41)) ([23ea2d4](https://github.com/compliance-framework/plugin-github-settings/commit/23ea2d4ba82553bc50694773a78a816fe8df4af0))
+* **deps:** update security fixes (gomod) [security] ([#39](https://github.com/compliance-framework/plugin-github-settings/issues/39)) ([d18f5b8](https://github.com/compliance-framework/plugin-github-settings/commit/d18f5b89c7dfa3441baf682709388f691f0e97ff))
+
 ## [0.8.0](https://github.com/compliance-framework/plugin-github-settings/compare/v0.7.0...v0.8.0) (2026-11-02)
 
 
